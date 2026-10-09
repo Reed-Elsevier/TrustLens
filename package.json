@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "legal:seed": "node scripts/fixtures/seed-legal.mjs",
+    "verify:legal": "node scripts/verify-legal.mjs",
+    "test:legal": "node --test scripts/fixtures/legal.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
