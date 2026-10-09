@@ -29,6 +29,26 @@ real secrets in `.env.example`. Next.js only reads env files at process
 startup, so restart `npm run dev` (or re-run `npm run build`) any time you
 add or change a variable in `.env.local`.
 
+## Paper analyzer (drag & drop)
+
+The home page (`/`) lets you drop a research PDF and get a publishing-integrity
+screen, a legal good-law check of the authorities it cites, an AI-written list of
+what the paper lacks and needs, and a chat grounded in those results.
+
+```bash
+npm run legal:seed     # one-off: writes the synthetic legal tables into hackathon.db
+npm run dev            # then open http://localhost:3000 and drop a PDF, or click "Try a sample paper"
+npm run test:analyze   # analyzer tests (temporary database, no network)
+npm run sample:paper   # regenerates public/sample-paper.pdf (matches the seeded legal data)
+```
+
+- Without legal tables the legal check still runs but cannot verify authorities; the UI says so.
+- Claude (AWS Bedrock) writes the review and chat answers. Without a valid
+  `AWS_BEARER_TOKEN_BEDROCK` (the short-term key expires in about 12 hours) both fall
+  back to deterministic answers built from the computed checks, so the page keeps working.
+- PDFs are parsed in memory and never saved. Extracts of the analysis are sent to the model.
+- API: `POST /api/analyze` (multipart `file`), `POST /api/analyze/review`, `POST /api/analyze/chat`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

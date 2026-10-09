@@ -9,14 +9,17 @@
     "lint": "eslint",
     "legal:seed": "node scripts/fixtures/seed-legal.mjs",
     "verify:legal": "node scripts/verify-legal.mjs",
-    "test:legal": "node --test scripts/fixtures/legal.test.mjs"
+    "test:legal": "node --test scripts/fixtures/legal.test.mjs",
+    "test:analyze": "node --test scripts/fixtures/analyze.test.mjs",
+    "sample:paper": "node scripts/fixtures/make-sample-paper.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
     "better-sqlite3": "^13.0.3",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
