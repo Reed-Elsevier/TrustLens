@@ -27,10 +27,20 @@ export async function uploadPdf(file: File, signal: AbortSignal): Promise<Analys
   return parse<AnalysisResult>(await fetch("/api/analyze", { method: "POST", body: form, signal }));
 }
 
-export async function requestReview(analysisId: string, signal: AbortSignal): Promise<ReviewResponse> {
-  return parse<ReviewResponse>(await postJson("/api/analyze/review", { analysisId }, signal));
+export async function requestReview(analysisId: string, signal: AbortSignal, allowAi = false): Promise<ReviewResponse> {
+  return parse<ReviewResponse>(await postJson("/api/analyze/review", { analysisId, allowAi }, signal));
 }
 
-export async function sendChat(analysisId: string, message: string, history: ChatTurn[], signal?: AbortSignal): Promise<ChatResponse> {
-  return parse<ChatResponse>(await postJson("/api/analyze/chat", { analysisId, message, history }, signal));
+export async function sendChat(analysisId: string, message: string, history: ChatTurn[], signal?: AbortSignal, allowAi = false): Promise<ChatResponse> {
+  return parse<ChatResponse>(await postJson("/api/analyze/chat", { analysisId, message, history, allowAi }, signal));
+}
+
+export async function deleteCachedAnalyses(ids: string[]): Promise<void> {
+  const unique = [...new Set(ids)];
+  for (let start = 0; start < unique.length; start += 100) {
+    await parse<{ deleted: string[]; alreadyAbsent: string[] }>(await fetch("/api/analyze", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ analysisIds: unique.slice(start, start + 100) }),
+    }));
+  }
 }

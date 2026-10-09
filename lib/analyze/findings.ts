@@ -1,5 +1,5 @@
 import { SIMILARITY_CONFIG } from "@/lib/analyze/config";
-import type { Finding, IntegrityReport, LegalReport, Severity, StructureReport } from "@/lib/analyze/types";
+import type { Finding, IntegrityReport, LegalReport, PlagiarismReport, Severity, StructureReport } from "@/lib/analyze/types";
 
 const SEVERITY_ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
 
@@ -14,10 +14,21 @@ const STATEMENT_FIX: Record<string, string> = {
 };
 
 /** Every deterministic gap. Each carries a stable id so AI text can reference, but never invent, findings. */
-export function buildFindings(input: { structure: StructureReport; integrity: IntegrityReport; legal: LegalReport }): Finding[] {
+export function buildFindings(input: { structure: StructureReport; integrity: IntegrityReport; legal: LegalReport; plagiarism?: PlagiarismReport }): Finding[] {
   const { structure, integrity, legal } = input;
   const findings: Finding[] = [];
   const add = (finding: Finding) => findings.push(finding);
+
+  for (const match of input.plagiarism?.matches ?? []) {
+    const id = `plagiarism.overlap.${match.paperId}`;
+    if (findings.some((finding) => finding.id === id)) continue;
+    add({
+      id, area: "integrity", severity: match.sharedWords >= 30 ? "high" : "medium",
+      title: `Potential text overlap with ${match.title ?? match.paperId}`,
+      detail: `${match.sharedWords} consecutive words match published abstract ${match.paperId} at manuscript body words ${match.startWord}-${match.endWord}.`,
+      fix: "Compare the matched passages, verify attribution and quotations, and revise unacknowledged reuse. Text overlap alone is not proof of plagiarism.",
+    });
+  }
 
   const top = integrity.matches[0];
   if (top && Math.max(top.cosine, top.containment) >= SIMILARITY_CONFIG.flagCosine) {

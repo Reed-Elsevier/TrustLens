@@ -7,6 +7,7 @@ import { buildFindings } from "@/lib/analyze/findings";
 import { assessIntegrity } from "@/lib/analyze/integrity";
 import { scanLegal } from "@/lib/analyze/legalScan";
 import { parsePdf } from "@/lib/analyze/pdf";
+import { checkPlagiarism } from "@/lib/analyze/plagiarism";
 import { getAnalysis, putAnalysis } from "@/lib/analyze/store";
 import { analyzeStructure, completenessScore } from "@/lib/analyze/structure";
 import type { AnalysisResult } from "@/lib/analyze/types";
@@ -33,14 +34,16 @@ export async function analyzePdf(bytes: Uint8Array, fileName: string, database: 
   const { abstractText, ...structure } = analyzeStructure(parsed.text);
   const integrity = assessIntegrity({ structure, abstractText, text: parsed.text, anomalies: detectAnomalies(parsed.text) }, database);
   const legal = scanLegal(parsed.text, database);
+  const plagiarism = checkPlagiarism(parsed.text, parsed.truncated, database);
   const result: AnalysisResult = {
     id,
     notice: ANALYSIS_NOTICE,
     file: { name: sanitizeFileName(fileName), sizeBytes: bytes.byteLength, pages: parsed.pages, words: structure.words, truncated: parsed.truncated, title: parsed.title },
     structure,
     integrity,
+    plagiarism,
     legal,
-    findings: buildFindings({ structure, integrity, legal }),
+    findings: buildFindings({ structure, integrity, legal, plagiarism }),
     completenessScore: completenessScore(structure),
   };
   putAnalysis({ result, text: parsed.text, chunks: splitChunks(parsed.text), abstractText });

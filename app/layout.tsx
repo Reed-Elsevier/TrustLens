@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "TrustLens | Paper integrity & legal analyzer",
   description: "Drop a research PDF to screen publishing integrity, check legal authorities, see what the paper lacks, and chat with the results.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#090909",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

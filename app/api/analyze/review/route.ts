@@ -8,7 +8,8 @@ export async function POST(request: NextRequest) {
     const body = await readJsonObject(request);
     const analysisId = body?.analysisId;
     if (typeof analysisId !== "string" || !ANALYSIS_ID_PATTERN.test(analysisId)) return badRequest("analysisId must be a 16-character hex id");
-    const result = await reviewAnalysis(analysisId);
+    if (body?.allowAi !== undefined && typeof body.allowAi !== "boolean") return badRequest("allowAi must be a boolean");
+    const result = await reviewAnalysis(analysisId, body?.allowAi === true);
     return result ? NextResponse.json(result) : notFound("Analysis not found or expired. Upload the PDF again.");
   });
 }

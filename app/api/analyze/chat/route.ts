@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
     if (message.length > CHAT_CONFIG.maxMessageChars) return badRequest(`message must be at most ${CHAT_CONFIG.maxMessageChars} characters`);
     const history = parseHistory(body?.history);
     if (!history) return badRequest("history must be an array of { role: user|assistant, content: string }");
-    const result = await chatAbout(analysisId, message, history);
+    if (body?.allowAi !== undefined && typeof body.allowAi !== "boolean") return badRequest("allowAi must be a boolean");
+    const result = await chatAbout(analysisId, message, history, body?.allowAi === true);
     return result ? NextResponse.json(result) : notFound("Analysis not found or expired. Upload the PDF again.");
   });
 }

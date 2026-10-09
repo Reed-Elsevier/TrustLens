@@ -2,6 +2,7 @@ export type Severity = "high" | "medium" | "low";
 export type FindingArea = "integrity" | "legal" | "structure" | "references";
 export type RiskLevel = "high" | "medium" | "low";
 export type LegalVerdict = "good_law" | "questionable" | "overruled" | "superseded";
+export type AnswerSource = "claude" | "fallback" | "local";
 
 /** A deterministic, number-backed observation. AI text may reference findings but never creates them. */
 export interface Finding {
@@ -58,6 +59,29 @@ export interface SimilarMatch {
   doi: string | null;
   cosine: number;
   containment: number;
+}
+
+export interface PlagiarismMatch {
+  paperId: string;
+  title: string | null;
+  doi: string | null;
+  startWord: number;
+  endWord: number;
+  sharedWords: number;
+  passage: string;
+  sourcePassage: string;
+}
+
+export interface PlagiarismReport {
+  available: boolean;
+  corpusSize: number;
+  checkedWords: number;
+  matchedWords: number;
+  overlapPercent: number;
+  matchCount: number;
+  matches: PlagiarismMatch[];
+  truncated: boolean;
+  notice: string;
 }
 
 export type AnomalyKind = "tortured_phrase" | "llm_artifact" | "reviewer_manipulation" | "placeholder" | "duplicate_text";
@@ -134,7 +158,7 @@ export interface Review {
 export interface ReviewResponse {
   analysisId: string;
   review: Review;
-  source: "claude" | "fallback";
+  source: AnswerSource;
 }
 
 export interface AnalysisResult {
@@ -143,6 +167,7 @@ export interface AnalysisResult {
   file: { name: string; sizeBytes: number; pages: number; words: number; truncated: boolean; title: string | null };
   structure: StructureReport;
   integrity: IntegrityReport;
+  plagiarism: PlagiarismReport;
   legal: LegalReport;
   findings: Finding[];
   completenessScore: number;
@@ -155,8 +180,16 @@ export interface ChatTurn {
 
 export interface ChatResponse {
   reply: string;
-  source: "claude" | "fallback";
+  source: AnswerSource;
   suggestions: string[];
+  proposedTasks: TaskProposal[];
+}
+
+export interface TaskProposal {
+  title: string;
+  action: string;
+  severity: Severity;
+  findingIds: string[];
 }
 
 export interface ApiErrorBody {

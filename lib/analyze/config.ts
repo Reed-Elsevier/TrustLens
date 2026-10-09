@@ -14,6 +14,8 @@ export const SIMILARITY_CONFIG = {
   topMatches: 5,
 };
 
+export const PLAGIARISM_CONFIG = { shingleSize: 5, minSharedWords: 10, maxMatches: 20, excerptChars: 320 };
+
 /** Max points per integrity signal. Total = 100. */
 export const INTEGRITY_MAX_POINTS = {
   similarity: 30,

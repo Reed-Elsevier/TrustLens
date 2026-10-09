@@ -3,20 +3,28 @@
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { CHAT_CONFIG } from "@/lib/analyze/config";
 import { suggestQuestions } from "@/lib/analyze/suggestions";
-import type { AnalysisResult, ChatTurn } from "@/lib/analyze/types";
+import type { AnalysisResult, AnswerSource, ChatTurn, TaskProposal } from "@/lib/analyze/types";
 import { ApiRequestError, sendChat } from "@/components/analyzer/api";
-import { IconSend, IconSpark } from "@/components/analyzer/ui";
+import { FOCUS_RING, IconLens, IconSend } from "@/components/analyzer/ui";
 
 export interface ChatHandle {
   ask: (question: string) => void;
 }
 
 interface Bubble extends ChatTurn {
-  source?: "claude" | "fallback";
+  source?: AnswerSource;
   failed?: boolean;
+  proposedTasks?: TaskProposal[];
 }
 
-export function ChatPanel({ result, handle }: { result: AnalysisResult; handle: Ref<ChatHandle> }) {
+export function ChatPanel({ result, handle, onAddTask, hasTask, canAddTask, allowAi }: {
+  result: AnalysisResult;
+  handle: Ref<ChatHandle>;
+  onAddTask: (proposal: TaskProposal) => boolean;
+  hasTask: (proposal: TaskProposal) => boolean;
+  canAddTask: boolean;
+  allowAi: boolean;
+}) {
   const [messages, setMessages] = useState<Bubble[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -40,8 +48,8 @@ export function ChatPanel({ result, handle }: { result: AnalysisResult; handle: 
     const controller = new AbortController();
     controllerRef.current = controller;
     try {
-      const reply = await sendChat(result.id, message, history, controller.signal);
-      setMessages((current) => [...current, { role: "assistant", content: reply.reply, source: reply.source }]);
+      const reply = await sendChat(result.id, message, history, controller.signal, allowAi);
+      setMessages((current) => [...current, { role: "assistant", content: reply.reply, source: reply.source, proposedTasks: reply.proposedTasks }]);
       setSuggestions(reply.suggestions);
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -62,59 +70,76 @@ export function ChatPanel({ result, handle }: { result: AnalysisResult; handle: 
   };
 
   return (
-    <section
-      id="chat"
-      aria-label="Chat about this paper"
-      className="flex h-[36rem] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-xl shadow-indigo-500/10 backdrop-blur lg:h-[calc(100vh-7rem)] dark:border-white/10 dark:bg-slate-900/70"
-    >
-      <header className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-3 text-white">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-white/20"><IconSpark className="h-5 w-5" /></span>
-        <div>
-          <h2 className="text-sm font-semibold">Ask TrustLens</h2>
-          <p className="text-xs text-white/80">Answers come from this report and the paper’s text</p>
+    <section id="chat" aria-label="Chat about this paper" className="flex h-[36rem] flex-col overflow-hidden rounded-xl border border-line bg-panel lg:h-[calc(100vh-6.5rem)]">
+      <header className="flex items-center gap-3 border-b border-line px-4 py-3">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-canvas">
+          <IconLens className="h-4 w-4" strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-bright">Ask TrustLens</h2>
+          <p className="truncate text-xs text-muted">Answers from this report and the paper’s text</p>
         </div>
+        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Grounded
+        </span>
       </header>
 
-      <div ref={listRef} role="log" aria-live="polite" className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-slate-100 px-3.5 py-2.5 text-sm leading-relaxed dark:bg-white/10">
-          Hi! I’ve read <span className="font-medium">{result.file.name}</span>. Ask me what’s missing, whether the legal authorities still hold, or how to fix a gap.
+      <div ref={listRef} role="log" aria-live="polite" className="scroll-thin flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        <div className="max-w-[92%] rounded-lg rounded-tl-sm border border-line bg-canvas px-3.5 py-2.5 text-sm leading-relaxed text-ink">
+          I’ve read <span className="font-medium text-bright">{result.file.name}</span>. Ask what’s missing, whether the legal authorities still hold, or how to fix a gap.
         </div>
         {messages.map((message, index) => (
           <div key={index} className={`animate-pop flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[90%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+              className={`max-w-[92%] whitespace-pre-wrap rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
                 message.role === "user"
-                  ? "rounded-tr-sm bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white"
+                  ? "rounded-tr-sm border border-accent-deep/70 bg-accent/[0.08] text-bright"
                   : message.failed
-                    ? "rounded-tl-sm bg-rose-50 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30"
-                    : "rounded-tl-sm bg-slate-100 dark:bg-white/10"
+                    ? "rounded-tl-sm border border-danger/30 bg-danger/10 text-danger"
+                    : "rounded-tl-sm border border-line bg-canvas text-ink"
               }`}
             >
               {message.content}
-              {message.source === "fallback" ? <span className="mt-1.5 block text-[11px] opacity-60">Answered from the computed checks (AI unavailable)</span> : null}
+              {message.source === "fallback" ? <span className="mt-2 block font-mono text-[10px] uppercase tracking-wider text-muted">From computed checks · AI unavailable</span> : null}
+              {message.source === "local" ? <span className="mt-2 block font-mono text-[10px] uppercase tracking-wider text-muted">From computed checks · AI processing off</span> : null}
+              {message.proposedTasks?.length ? (
+                <div className="mt-3 space-y-2 border-t border-line pt-3">
+                  <p className="text-xs font-medium text-accent">Want me to add this to your bucket list?</p>
+                  {message.proposedTasks.map((proposal) => (
+                    <div key={proposal.findingIds.join("|") || proposal.action} className="rounded-md border border-line p-2">
+                      <p className="text-xs font-medium text-bright">{proposal.title}</p>
+                      <p className="mt-1 text-xs text-ink">{proposal.action}</p>
+                      <button type="button" disabled={!canAddTask || hasTask(proposal)} onClick={() => onAddTask(proposal)} className={`mt-2 rounded border border-accent-deep px-2 py-1 text-xs text-accent disabled:text-muted ${FOCUS_RING}`}>
+                        {hasTask(proposal) ? "Added to bucket list" : "Add task"}
+                      </button>
+                    </div>
+                  ))}
+                  {!canAddTask ? <p className="text-xs text-danger">Tasks cannot be saved until browser storage is available and this analysis has a saved bucket list.</p> : null}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
         {sending ? (
           <div className="flex" role="status" aria-label="TrustLens is typing">
-            <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-3 dark:bg-white/10">
+            <div className="flex items-center gap-1.5 rounded-lg rounded-tl-sm border border-line bg-canvas px-4 py-3">
               {[0, 150, 300].map((delay) => (
-                <span key={delay} className="animate-dot h-2 w-2 rounded-full bg-indigo-500" style={{ animationDelay: `${delay}ms` }} />
+                <span key={delay} className="animate-dot h-1.5 w-1.5 rounded-full bg-accent" style={{ animationDelay: `${delay}ms` }} />
               ))}
             </div>
           </div>
         ) : null}
       </div>
 
-      <div className="border-t border-slate-200/80 p-3 dark:border-white/10">
+      <div className="border-t border-line p-3">
         {!sending ? (
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
             {suggestions.map((question) => (
               <button
                 key={question}
                 type="button"
                 onClick={() => void send(question)}
-                className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/30 dark:border-indigo-400/30 dark:bg-indigo-500/10 dark:text-indigo-200"
+                className={`rounded-md border border-line bg-canvas px-2.5 py-1 text-left text-xs text-ink transition-colors hover:border-accent-deep hover:text-accent ${FOCUS_RING}`}
               >
                 {question}
               </button>
@@ -128,7 +153,9 @@ export function ChatPanel({ result, handle }: { result: AnalysisResult; handle: 
             void send(draft);
           }}
         >
-          <label htmlFor="chat-input" className="sr-only">Your question</label>
+          <label htmlFor="chat-input" className="sr-only">
+            Your question
+          </label>
           <textarea
             id="chat-input"
             value={draft}
@@ -137,18 +164,18 @@ export function ChatPanel({ result, handle }: { result: AnalysisResult; handle: 
             rows={1}
             maxLength={CHAT_CONFIG.maxMessageChars}
             placeholder="Ask about gaps, citations, similarity…"
-            className="max-h-32 min-h-10 flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 dark:border-white/15 dark:bg-white/5"
+            className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-bright placeholder:text-muted focus:border-accent-deep focus:outline-none focus:ring-2 focus:ring-accent/25"
           />
           <button
             type="submit"
             disabled={sending || !draft.trim()}
             aria-label="Send message"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white shadow-md transition enabled:hover:scale-105 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/40"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent text-canvas transition enabled:hover:brightness-110 disabled:bg-raised disabled:text-muted ${FOCUS_RING}`}
           >
-            <IconSend className="h-4 w-4" />
+            <IconSend className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </form>
-        <p className="mt-2 text-center text-[11px] text-slate-400">AI can make mistakes. Indicators need editorial judgement; not legal advice.</p>
+        <p className="mt-2 text-center text-[11px] text-muted">{allowAi ? "AI can make mistakes." : "AI processing is off; answers use server-side checks only."} Indicators need editorial judgement. Not legal advice.</p>
       </div>
     </section>
   );

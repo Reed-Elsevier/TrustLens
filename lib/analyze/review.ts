@@ -27,6 +27,16 @@ export function buildEvidencePacket(entry: StoredAnalysis) {
       closestMatches: result.integrity.matches.slice(0, 3).map(({ paperId, cosine, containment }) => ({ paperId, cosine, containment })),
       anomalies: result.integrity.anomalies.map(({ kind, count, example }) => ({ kind, count, example: example.slice(0, 120) })),
     },
+    plagiarism: {
+      available: result.plagiarism.available,
+      corpusSize: result.plagiarism.corpusSize,
+      checkedWords: result.plagiarism.checkedWords,
+      overlapPercent: result.plagiarism.overlapPercent,
+      matchCount: result.plagiarism.matchCount,
+      truncated: result.plagiarism.truncated,
+      notice: result.plagiarism.notice,
+      matches: result.plagiarism.matches.slice(0, 3),
+    },
     structure: {
       completenessScore: result.completenessScore,
       sectionsMissing: result.structure.sections.filter((s) => !s.found).map((s) => s.label),
@@ -45,7 +55,7 @@ export function buildEvidencePacket(entry: StoredAnalysis) {
   };
 }
 
-export function fallbackReview(result: AnalysisResult): Review {
+export function fallbackReview(result: AnalysisResult, aiEnabled = true): Review {
   const { findings, integrity, legal } = result;
   const attention = legal.counts.overruled + legal.counts.superseded + legal.counts.questionable;
   const gaps: ReviewGap[] = findings.slice(0, REVIEW_CONFIG.maxGaps).map((finding) => ({
@@ -74,7 +84,7 @@ export function fallbackReview(result: AnalysisResult): Review {
   const high = findings.filter((f) => f.severity === "high").length;
   return {
     headline: `${integrity.level[0].toUpperCase()}${integrity.level.slice(1)} integrity risk, ${attention} legal authorit${attention === 1 ? "y" : "ies"} needing attention, ${findings.length} gap${findings.length === 1 ? "" : "s"} to close`,
-    assessment: `Integrity score ${integrity.score}/100 (${integrity.level}). ${findings.length} gap(s) were found, ${high} of them high severity. ${legal.counts.verified} legal authorit${legal.counts.verified === 1 ? "y was" : "ies were"} verified and ${legal.counts.unverified} could not be verified. This is a deterministic summary; AI review was unavailable. Indicators need editorial judgement and are not proof of misconduct.`,
+    assessment: `Integrity score ${integrity.score}/100 (${integrity.level}). ${findings.length} gap(s) were found, ${high} of them high severity. ${legal.counts.verified} legal authorit${legal.counts.verified === 1 ? "y was" : "ies were"} verified and ${legal.counts.unverified} could not be verified. This is a deterministic summary; ${aiEnabled ? "AI review was unavailable" : "AI processing is off"}. Indicators need editorial judgement and are not proof of misconduct.`,
     gaps,
     needs,
     questionsForAuthors: questions,
@@ -134,9 +144,10 @@ export function validateReview(text: string, knownFindingIds: Set<string>): Revi
 }
 
 /** AI-written gaps & needs grounded in computed findings. Falls back to a deterministic review. */
-export async function reviewAnalysis(analysisId: string): Promise<ReviewResponse | undefined> {
+export async function reviewAnalysis(analysisId: string, allowAi = false): Promise<ReviewResponse | undefined> {
   const entry = getAnalysis(analysisId);
   if (!entry) return undefined;
+  if (!allowAi) return { analysisId, review: fallbackReview(entry.result, false), source: "local" };
   if (!entry.review) {
     entry.pendingReview ??= (async () => {
       const known = new Set(entry.result.findings.map((finding) => finding.id));

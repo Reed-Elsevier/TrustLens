@@ -4,6 +4,7 @@ import type { AnalysisResult } from "@/lib/analyze/types";
 export function suggestQuestions(result: Pick<AnalysisResult, "findings" | "legal">): string[] {
   const ids = result.findings.map((finding) => finding.id);
   const questions = ["What are the biggest gaps in this paper?"];
+  if (ids.some((id) => id.startsWith("plagiarism.overlap."))) questions.push("What text overlap needs attribution review?");
   if (ids.some((id) => id.startsWith("legal.overruled.") || id.startsWith("legal.superseded."))) questions.push("Which legal authorities are no longer good law?");
   else if (result.legal.relevance !== "none") questions.push("Are the legal authorities in this paper still good law?");
   if (ids.includes("integrity.similarity")) questions.push("How similar is this paper to published work?");

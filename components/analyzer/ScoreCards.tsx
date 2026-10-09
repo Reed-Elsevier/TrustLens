@@ -1,23 +1,27 @@
 import type { AnalysisResult } from "@/lib/analyze/types";
-import { Card, LEVEL_TONE, ScoreRing } from "@/components/analyzer/ui";
+import { Card, EYEBROW, LEVEL_TONE, Meter } from "@/components/analyzer/ui";
 
-const GOOD = { ring: "stroke-emerald-500", text: "text-emerald-600 dark:text-emerald-400" };
-const OKAY = { ring: "stroke-amber-500", text: "text-amber-600 dark:text-amber-400" };
-const BAD = { ring: "stroke-rose-500", text: "text-rose-600 dark:text-rose-400" };
-const NEUTRAL = { ring: "stroke-slate-400", text: "text-slate-400" };
+type ToneStyle = { text: string; bar: string };
 
-function Stat({ title, caption, detail, value, display, tone }: { title: string; caption: string; detail: string; value: number | null; display: string; tone: typeof GOOD }) {
+const GOOD: ToneStyle = { text: "text-accent", bar: "bg-accent" };
+const OKAY: ToneStyle = { text: "text-warn", bar: "bg-warn" };
+const BAD: ToneStyle = { text: "text-danger", bar: "bg-danger" };
+const NEUTRAL: ToneStyle = { text: "text-muted", bar: "bg-line" };
+
+function Metric({ title, value, display, suffix, caption, detail, tone }: { title: string; value: number | null; display: string; suffix?: string; caption: string; detail: string; tone: ToneStyle }) {
   return (
-    <Card className="animate-rise @container p-4 sm:p-5">
-      <div className="flex flex-col items-center gap-3 text-center @xs:flex-row @xs:gap-4 @xs:text-left">
-        <ScoreRing value={value} display={display} ringClass={tone.ring} textClass={tone.text} size={96} />
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</p>
-          <p className={`text-base font-semibold ${tone.text}`}>{caption}</p>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{detail}</p>
-        </div>
+    <div className="p-5">
+      <p className={EYEBROW}>{title}</p>
+      <p className="mt-3 flex items-baseline gap-1">
+        <span className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-bright">{display}</span>
+        {suffix ? <span className="font-mono text-sm text-muted">{suffix}</span> : null}
+      </p>
+      <p className={`mt-1 text-sm font-medium ${tone.text}`}>{caption}</p>
+      <div className="mt-3">
+        <Meter value={value ?? 0} max={100} className={tone.bar} />
       </div>
-    </Card>
+      <p className="mt-2.5 text-xs leading-relaxed text-muted">{detail}</p>
+    </div>
   );
 }
 
@@ -26,38 +30,45 @@ export function ScoreCards({ result }: { result: AnalysisResult }) {
   const level = LEVEL_TONE[integrity.level];
   const legalPercent = legal.currencyRate === null ? null : Math.round(legal.currencyRate * 100);
   const high = findings.filter((finding) => finding.severity === "high").length;
-  const completenessTone = completenessScore >= 80 ? GOOD : completenessScore >= 50 ? OKAY : BAD;
+  const legalTone = legalPercent === null ? NEUTRAL : legalPercent === 100 ? GOOD : legalPercent >= 70 ? OKAY : BAD;
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Stat
+    <Card className="animate-rise grid divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0" aria-label="Summary scores">
+      <Metric
         title="Integrity risk"
-        caption={level.label}
-        detail={`${integrity.anomalies.length} red-flag type(s) · ${integrity.signals.filter((s) => s.points > 0).length} of ${integrity.signals.length} signals raised`}
         value={integrity.score}
         display={String(integrity.score)}
-        tone={{ ring: level.ring, text: level.text }}
+        suffix="/100"
+        caption={level.label}
+        detail={`${integrity.signals.filter((s) => s.points > 0).length} of ${integrity.signals.length} signals raised · ${integrity.anomalies.length} red-flag type(s)`}
+        tone={{ text: level.text, bar: level.bar }}
       />
-      <Stat
+      <Metric
         title="Legal currency"
-        caption={legal.relevance === "none" ? "Not a legal paper" : legalPercent === null ? "Nothing verified" : "Still good law"}
-        detail={
-          legal.relevance === "none"
-            ? "No legal authorities detected"
-            : `${legal.counts.goodLaw} of ${legal.counts.verified} verified · ${legal.counts.unverified} unverified`
-        }
         value={legalPercent}
         display={legalPercent === null ? "–" : `${legalPercent}%`}
-        tone={legalPercent === null ? NEUTRAL : legalPercent === 100 ? GOOD : legalPercent >= 70 ? OKAY : BAD}
+        caption={
+          legal.relevance === "none"
+            ? "Not a legal paper"
+            : legalPercent === null
+              ? "Nothing verified"
+              : legalPercent === 100
+                ? "All still good law"
+                : legalPercent >= 70
+                  ? "Mostly current"
+                  : "Outdated authorities"
+        }
+        detail={legal.relevance === "none" ? "No legal authorities detected" : `${legal.counts.goodLaw} of ${legal.counts.verified} verified still good law · ${legal.counts.unverified} unverified`}
+        tone={legalTone}
       />
-      <Stat
+      <Metric
         title="Completeness"
-        caption={completenessScore >= 80 ? "Well structured" : completenessScore >= 50 ? "Gaps to close" : "Needs work"}
-        detail={`${findings.length} gap${findings.length === 1 ? "" : "s"} found · ${high} high severity`}
         value={completenessScore}
         display={`${completenessScore}%`}
-        tone={completenessTone}
+        caption={completenessScore >= 80 ? "Well structured" : completenessScore >= 50 ? "Gaps to close" : "Needs work"}
+        detail={`${findings.length} gap${findings.length === 1 ? "" : "s"} found · ${high} high severity`}
+        tone={completenessScore >= 80 ? GOOD : completenessScore >= 50 ? OKAY : BAD}
       />
-    </div>
+    </Card>
   );
 }

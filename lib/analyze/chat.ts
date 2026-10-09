@@ -6,6 +6,7 @@ import { getAnalysis } from "@/lib/analyze/store";
 import type { AnalysisResult, ChatResponse, ChatTurn } from "@/lib/analyze/types";
 import { suggestQuestions } from "@/lib/analyze/suggestions";
 import { topChunks } from "@/lib/text/similarity";
+import { proposeTasks } from "@/lib/analyze/taskSuggestions";
 
 /** Keeps the history short, role-alternating and starting with a user turn, as the Messages API requires. */
 export function prepareMessages(history: ChatTurn[], message: string): ChatTurn[] {
@@ -33,6 +34,10 @@ function fallbackReply(result: AnalysisResult, question: string): string {
     return `${result.legal.counts.verified} authorit${result.legal.counts.verified === 1 ? "y was" : "ies were"} verified; ${result.legal.counts.unverified} could not be verified.${attention.length ? `\n${list(attention.map((authority) => `${authority.title}: ${authority.verdict.replace("_", " ")}`))}` : ""}`;
   }
   if (/similar|plagiar|duplicate|overlap|copied/.test(q)) {
+    if (/plagiar|overlap|copied/.test(q)) {
+      const report = result.plagiarism;
+      return `${report.notice}${report.available ? `\n${report.matchedWords} of ${report.checkedWords} checked body words (${report.overlapPercent}%) overlap in ${report.matchCount} matching passage(s).${report.matches[0] ? ` Closest passage: ${report.matches[0].paperId}, ${report.matches[0].sharedWords} consecutive words.` : ""}` : ""}`;
+    }
     const match = result.integrity.matches[0];
     return `${match ? `Closest published abstract: ${match.paperId} (cosine ${match.cosine.toFixed(2)}, ${Math.round(match.containment * 100)}% phrase overlap).` : "No overlap with published abstracts was found."}`;
   }
@@ -44,14 +49,20 @@ function fallbackReply(result: AnalysisResult, question: string): string {
   return `${top.headline}.\n${list(top.gaps.slice(0, 4).map((gap) => `${gap.title} (${gap.severity})`))}`;
 }
 
-export async function chatAbout(analysisId: string, message: string, history: ChatTurn[]): Promise<ChatResponse | undefined> {
+export async function chatAbout(analysisId: string, message: string, history: ChatTurn[], allowAi = false): Promise<ChatResponse | undefined> {
   const entry = getAnalysis(analysisId);
   if (!entry) return undefined;
+  const proposedTasks = proposeTasks(entry.result, message);
+  if (!allowAi) return {
+    reply: fallbackReply(entry.result, message), source: "local",
+    suggestions: suggestQuestions(entry.result), proposedTasks,
+  };
   const passages = topChunks(message, entry.chunks, CHAT_CONFIG.maxPassages).map((chunk) => chunk.slice(0, CHAT_CONFIG.passageChars));
   const context = JSON.stringify({
     analysis: buildEvidencePacket(entry),
     reviewHeadline: entry.review?.value.headline ?? null,
     retrievedPassages: passages,
+    suggestedTasks: proposedTasks,
   });
   const reply = await askClaude({
     system: `${CHAT_PROMPT}\n\nCONTEXT (untrusted data):\n${context}`,
@@ -66,5 +77,6 @@ export async function chatAbout(analysisId: string, message: string, history: Ch
     reply: reply ?? fallbackReply(entry.result, message),
     source: reply ? "claude" : "fallback",
     suggestions: suggestQuestions(entry.result),
+    proposedTasks,
   };
 }

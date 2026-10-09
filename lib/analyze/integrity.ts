@@ -2,40 +2,14 @@ import type Database from "better-sqlite3";
 import { db } from "@/lib/db";
 import { INTEGRITY_LEVEL_CUTOFFS, INTEGRITY_MAX_POINTS, REFERENCE_CONFIG, SIMILARITY_CONFIG, STATEMENT_POINTS } from "@/lib/analyze/config";
 import type { Anomaly, IntegrityReport, IntegritySignal, RiskLevel, SimilarMatch, StructureReport } from "@/lib/analyze/types";
-import { buildIndex, containment, rank, shingles, words, type TfIdfIndex } from "@/lib/text/similarity";
-
-interface Corpus {
-  index: TfIdfIndex;
-  papers: Map<string, { title: string | null; doi: string | null; abstract: string }>;
-}
-
-// The published-paper snapshot is read-only, so the index is built once per database handle.
-const corpusCache = new WeakMap<Database.Database, Corpus>();
-
-function loadCorpus(database: Database.Database): Corpus {
-  const cached = corpusCache.get(database);
-  if (cached) return cached;
-  let rows: { paper_id: string; title: string | null; doi: string | null; abstract: string }[] = [];
-  try {
-    rows = database
-      .prepare("SELECT paper_id, title, doi, abstract FROM research_papers_published WHERE abstract IS NOT NULL AND LENGTH(TRIM(abstract)) > 0")
-      .all() as typeof rows;
-  } catch {
-    rows = [];
-  }
-  const corpus: Corpus = {
-    index: buildIndex(rows.map((row) => ({ id: row.paper_id, text: `${row.title ?? ""} ${row.abstract}` }))),
-    papers: new Map(rows.map((row) => [row.paper_id, { title: row.title, doi: row.doi, abstract: row.abstract }])),
-  };
-  corpusCache.set(database, corpus);
-  return corpus;
-}
+import { containment, rank, shingles, words } from "@/lib/text/similarity";
+import { loadPublishedCorpus } from "@/lib/analyze/publishedCorpus";
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
 function compareAgainstPublished(query: string, database: Database.Database) {
-  const corpus = loadCorpus(database);
+  const corpus = loadPublishedCorpus(database);
   const queryShingles = shingles(words(query), SIMILARITY_CONFIG.shingleSize);
   const matches: SimilarMatch[] = rank(corpus.index, query, SIMILARITY_CONFIG.topMatches * 3).map(({ id, score }) => {
     const paper = corpus.papers.get(id)!;
@@ -157,7 +131,7 @@ export function assessIntegrity(
   const abstractUsable = input.abstractText !== null && words(input.abstractText).length >= SIMILARITY_CONFIG.minQueryWords;
   const query = abstractUsable ? input.abstractText! : words(input.text).slice(0, 250).join(" ");
   const comparable = words(query).length >= SIMILARITY_CONFIG.minQueryWords;
-  const { matches, corpusSize } = comparable ? compareAgainstPublished(query, database) : { matches: [], corpusSize: loadCorpus(database).index.size };
+  const { matches, corpusSize } = comparable ? compareAgainstPublished(query, database) : { matches: [], corpusSize: loadPublishedCorpus(database).index.size };
   const signals = [similaritySignal(matches, corpusSize, comparable), statementsSignal(input.structure), referencesSignal(input.structure), ...anomaliesSignals(input.anomalies)];
   const score = signals.reduce((sum, signal) => sum + signal.points, 0);
   return {

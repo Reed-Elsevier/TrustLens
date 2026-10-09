@@ -1,57 +1,71 @@
+import type { ReactNode } from "react";
 import type { AnalysisResult } from "@/lib/analyze/types";
-import { Bar, Card, Chip, IconAlert, IconBook, IconCheck, IconScale, IconShield, IconX, SectionTitle, VerdictBadge } from "@/components/analyzer/ui";
+import { Card, Chip, EYEBROW, IconAlert, IconBook, IconCheck, IconScale, IconShield, IconX, Meter, SectionTitle, VerdictBadge } from "@/components/analyzer/ui";
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
+const overlapTone = (value: number) => (value >= 0.7 ? "bg-danger" : value >= 0.35 ? "bg-warn" : "bg-accent");
+
+function Divider({ title, icon }: { title: string; icon?: ReactNode }) {
+  return (
+    <h3 className={`flex items-center gap-2 border-t border-line pt-5 ${EYEBROW}`}>
+      {icon}
+      {title}
+    </h3>
+  );
+}
 
 export function IntegrityPanel({ result }: { result: AnalysisResult }) {
   const { integrity } = result;
   return (
     <Card className="animate-rise p-5 sm:p-6" aria-label="Publishing integrity">
-      <SectionTitle icon={<IconShield />} title="Publishing integrity" hint={`${integrity.score} of 100 risk points · indicators, not proof of misconduct`} />
+      <SectionTitle icon={<IconShield />} title="Publishing integrity" hint={`${integrity.score} of 100 risk points. Indicators, not proof of misconduct.`} />
       <ul className="mt-5 space-y-4">
-        {integrity.signals.map((signal) => (
-          <li key={signal.key}>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="font-medium">{signal.label}</span>
-              <span className="tabular-nums text-slate-500 dark:text-slate-400">{signal.applicable ? `${signal.points} / ${signal.maxPoints}` : "n/a"}</span>
-            </div>
-            <div className="mt-1.5">
-              <Bar
-                value={signal.points}
-                max={signal.maxPoints}
-                className={signal.points === 0 ? "bg-emerald-500" : signal.points / signal.maxPoints >= 0.5 ? "bg-rose-500" : "bg-amber-500"}
-              />
-            </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{signal.evidence}</p>
-          </li>
-        ))}
+        {integrity.signals.map((signal) => {
+          const ratio = signal.maxPoints === 0 ? 0 : signal.points / signal.maxPoints;
+          return (
+            <li key={signal.key}>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-bright">{signal.label}</span>
+                <span className="font-mono text-xs tabular-nums text-muted">{signal.applicable ? `${signal.points}/${signal.maxPoints}` : "n/a"}</span>
+              </div>
+              <div className="mt-2">
+                <Meter value={signal.points} max={signal.maxPoints} className={signal.points === 0 ? "bg-accent" : ratio >= 0.5 ? "bg-danger" : "bg-warn"} />
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted">{signal.evidence}</p>
+            </li>
+          );
+        })}
       </ul>
 
-      <div className="mt-6 border-t border-slate-100 pt-5 dark:border-white/5">
-        <h3 className="text-sm font-semibold">Closest published papers</h3>
+      <div className="mt-6 space-y-3">
+        <Divider title="Closest published papers" />
         {integrity.matches.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted">
             {integrity.corpusSize === 0
               ? "No published abstracts are available to compare against."
-              : `Compared ${integrity.comparedAgainst === "abstract" ? "the abstract" : "the opening text"} with ${integrity.corpusSize} published abstracts: no overlap found.`}
+              : `Compared ${integrity.comparedAgainst === "abstract" ? "the abstract" : "the opening text"} with ${integrity.corpusSize} published abstracts. No overlap found.`}
           </p>
         ) : (
-          <ul className="mt-3 space-y-3">
+          <ul className="space-y-2">
             {integrity.matches.map((match) => (
-              <li key={match.paperId} className="rounded-xl border border-slate-200 bg-white/60 p-3 text-sm dark:border-white/10 dark:bg-white/5">
+              <li key={match.paperId} className="rounded-lg border border-line bg-canvas p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{match.title ?? match.paperId}</span>
-                  <Chip>{match.paperId}</Chip>
+                  <span className="text-bright">{match.title ?? match.paperId}</span>
+                  <span className="font-mono text-[11px] text-muted">{match.paperId}</span>
                 </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Topic similarity</span><span className="tabular-nums">{pct(match.cosine)}</span></div>
-                    <Bar value={match.cosine} max={1} className="bg-indigo-500" />
-                  </div>
-                  <div>
-                    <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Phrases shared</span><span className="tabular-nums">{pct(match.containment)}</span></div>
-                    <Bar value={match.containment} max={1} className="bg-fuchsia-500" />
-                  </div>
+                <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: "Topic similarity", value: match.cosine },
+                    { label: "Phrases shared", value: match.containment },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div className="mb-1 flex justify-between text-xs text-muted">
+                        <span>{label}</span>
+                        <span className="font-mono tabular-nums text-ink">{pct(value)}</span>
+                      </div>
+                      <Meter value={value} max={1} className={overlapTone(value)} />
+                    </div>
+                  ))}
                 </div>
               </li>
             ))}
@@ -60,13 +74,16 @@ export function IntegrityPanel({ result }: { result: AnalysisResult }) {
       </div>
 
       {integrity.anomalies.length > 0 ? (
-        <div className="mt-6 border-t border-slate-100 pt-5 dark:border-white/5">
-          <h3 className="flex items-center gap-2 text-sm font-semibold"><IconAlert className="h-4 w-4 text-amber-500" /> Red flags in the text</h3>
-          <ul className="mt-3 space-y-2">
+        <div className="mt-6 space-y-3">
+          <Divider title="Red flags in the text" icon={<IconAlert className="h-3.5 w-3.5 text-warn" />} />
+          <ul className="space-y-2">
             {integrity.anomalies.map((anomaly) => (
-              <li key={anomaly.kind} className="rounded-xl bg-amber-50 p-3 text-sm dark:bg-amber-500/10">
-                <p className="font-medium">{anomaly.label} <span className="font-normal text-slate-500">× {anomaly.count}</span></p>
-                <p className="mt-1 text-xs italic text-slate-600 dark:text-slate-300">“{anomaly.example}”</p>
+              <li key={anomaly.kind} className="rounded-lg border border-warn/25 bg-warn/[0.06] p-3 text-sm">
+                <p className="flex items-center justify-between gap-2 text-bright">
+                  {anomaly.label}
+                  <span className="font-mono text-xs text-warn">×{anomaly.count}</span>
+                </p>
+                <p className="mt-1.5 border-l border-warn/40 pl-2.5 text-xs italic text-muted">“{anomaly.example}”</p>
               </li>
             ))}
           </ul>
@@ -83,65 +100,68 @@ export function LegalPanel({ result }: { result: AnalysisResult }) {
     <Card className="animate-rise p-5 sm:p-6" aria-label="Legal research">
       <SectionTitle icon={<IconScale />} title="Legal research check" hint="Cited authorities tested with the rule-based good-law check" />
       {!legal.available && legal.relevance !== "none" ? (
-        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
-          No legal database is loaded, so authorities can’t be verified. For the demo data run <code className="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs dark:bg-white/10">npm run legal:seed</code> and restart the server.
+        <p className="mt-4 rounded-lg border border-warn/30 bg-warn/10 p-3 text-sm text-warn">
+          No legal database is loaded, so authorities can’t be verified. For the demo data run{" "}
+          <code className="rounded bg-canvas px-1.5 py-0.5 font-mono text-xs text-bright">npm run legal:seed</code> and restart the server.
         </p>
       ) : null}
 
       {legal.relevance === "none" ? (
-        <div className="mt-5 rounded-xl bg-slate-100 p-5 text-center text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">
-          <IconBook className="mx-auto mb-2 h-7 w-7 text-slate-400" />
+        <div className="mt-5 rounded-lg border border-dashed border-line-strong bg-canvas p-6 text-center text-sm text-muted">
+          <IconBook className="mx-auto mb-2 h-6 w-6" />
           No legal authorities detected. This reads as a non-legal paper, so the legal check doesn’t apply.
         </div>
       ) : (
         <>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Chip tone="indigo">{counts.verified} verified</Chip>
-            <Chip tone="emerald">{counts.goodLaw} good law</Chip>
-            {counts.questionable > 0 ? <Chip tone="amber">{counts.questionable} questionable</Chip> : null}
-            {counts.overruled > 0 ? <Chip tone="rose">{counts.overruled} overruled</Chip> : null}
-            {counts.superseded > 0 ? <Chip tone="rose">{counts.superseded} superseded</Chip> : null}
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            <Chip>{counts.verified} verified</Chip>
+            <Chip tone="accent">{counts.goodLaw} good law</Chip>
+            {counts.questionable > 0 ? <Chip tone="warn">{counts.questionable} questionable</Chip> : null}
+            {counts.overruled > 0 ? <Chip tone="danger">{counts.overruled} overruled</Chip> : null}
+            {counts.superseded > 0 ? <Chip tone="danger">{counts.superseded} superseded</Chip> : null}
             {counts.unverified > 0 ? <Chip>{counts.unverified} unverified</Chip> : null}
           </div>
 
           {legal.authorities.length > 0 ? (
-            <ul className="mt-5 space-y-3">
+            <ul className="mt-4 space-y-2">
               {legal.authorities.map((authority) => (
-                <li key={authority.docId} className="rounded-xl border border-slate-200 bg-white/60 p-3.5 dark:border-white/10 dark:bg-white/5">
-                  <div className="flex flex-wrap items-center gap-2">
+                <li key={authority.docId} className="rounded-lg border border-line bg-canvas p-3.5">
+                  <div className="flex items-start gap-2.5">
                     <VerdictBadge verdict={authority.verdict} />
-                    <span className="min-w-0 flex-1 text-sm font-semibold">{authority.title}</span>
-                    <Chip>{authority.docType}</Chip>
+                    <span className="min-w-0 flex-1 text-sm font-medium leading-5 text-bright">{authority.title}</span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {authority.jurisdiction}{authority.court ? ` · ${authority.court}` : ""} · cited {authority.mentions}× · {authority.citingCount} later citing document(s)
+                  <p className="mt-1.5 font-mono text-[11px] text-muted">
+                    {authority.docType} · {authority.jurisdiction}
+                    {authority.court ? ` · ${authority.court}` : ""} · cited {authority.mentions}× · {authority.citingCount} later citing
                   </p>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{authority.reasons.join(" ")}</p>
+                  <p className="mt-2 text-sm text-ink">{authority.reasons.join(" ")}</p>
                   {authority.statusMismatch ? (
-                    <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                    <p className="mt-2 flex items-center gap-1.5 text-xs text-warn">
                       <IconAlert className="h-3.5 w-3.5" /> Database status “{authority.storedStatus.replace("_", " ")}” disagrees with the rule verdict.
                     </p>
                   ) : null}
-                  <blockquote className="mt-2 border-l-2 border-indigo-300 pl-3 text-xs italic text-slate-500 dark:text-slate-400">…{authority.snippet}…</blockquote>
+                  <blockquote className="mt-2.5 border-l border-line-strong pl-2.5 text-xs italic leading-relaxed text-muted">…{authority.snippet}…</blockquote>
                 </li>
               ))}
             </ul>
           ) : null}
 
           {legal.unverified.length > 0 ? (
-            <div className="mt-5">
-              <h3 className="text-sm font-semibold">Could not be verified</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Not found in the connected database. This means “unchecked”, not “wrong”.</p>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {legal.unverified.map((citation) => <li key={citation.text}><Chip>{citation.text}</Chip></li>)}
+            <div className="mt-6 space-y-2">
+              <Divider title="Could not be verified" />
+              <p className="text-xs text-muted">Not found in the connected database. This means unchecked, not wrong.</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {legal.unverified.map((citation) => (
+                  <li key={citation.text}>
+                    <Chip>{citation.text}</Chip>
+                  </li>
+                ))}
               </ul>
             </div>
           ) : null}
 
           {legal.jurisdictions.length > 0 ? (
-            <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">
-              Jurisdictions mentioned: {legal.jurisdictions.map((j) => `${j.name} (${j.mentions})`).join(", ")}
-            </p>
+            <p className="mt-5 text-xs text-muted">Jurisdictions mentioned: {legal.jurisdictions.map((j) => `${j.name} (${j.mentions})`).join(", ")}</p>
           ) : null}
         </>
       )}
@@ -151,9 +171,13 @@ export function LegalPanel({ result }: { result: AnalysisResult }) {
 
 function CheckRow({ label, ok, muted }: { label: string; ok: boolean; muted?: boolean }) {
   return (
-    <li className={`flex items-center gap-2 text-sm ${muted ? "opacity-50" : ""}`}>
-      <span className={`grid h-5 w-5 place-items-center rounded-full text-white ${ok ? "bg-emerald-500" : "bg-rose-400"}`}>
-        {ok ? <IconCheck className="h-3 w-3" strokeWidth={3} /> : <IconX className="h-3 w-3" strokeWidth={3} />}
+    <li className={`flex items-center gap-2.5 text-sm ${muted ? "text-muted" : "text-ink"}`}>
+      <span
+        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+          muted ? "border-line-strong text-muted" : ok ? "border-accent-deep bg-accent/15 text-accent" : "border-danger/40 bg-danger/10 text-danger"
+        }`}
+      >
+        {ok ? <IconCheck className="h-2.5 w-2.5" strokeWidth={3.5} /> : <IconX className="h-2.5 w-2.5" strokeWidth={3.5} />}
       </span>
       {label}
     </li>
@@ -165,31 +189,40 @@ export function StructurePanel({ result }: { result: AnalysisResult }) {
   const refs = structure.references;
   return (
     <Card className="animate-rise p-5 sm:p-6" aria-label="Structure and references">
-      <SectionTitle icon={<IconBook />} title="Structure & references" hint={`${result.completenessScore}% of expected sections and statements present`} />
+      <SectionTitle icon={<IconBook />} title="Structure and references" hint={`${result.completenessScore}% of expected sections and statements present`} />
       <div className="mt-5 grid gap-6 sm:grid-cols-2">
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sections</h3>
-          <ul className="space-y-2">{structure.sections.map((section) => <CheckRow key={section.key} label={section.label} ok={section.found} />)}</ul>
+          <h3 className={`mb-3 ${EYEBROW}`}>Sections</h3>
+          <ul className="space-y-2">
+            {structure.sections.map((section) => (
+              <CheckRow key={section.key} label={section.label} ok={section.found} />
+            ))}
+          </ul>
         </div>
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Statements</h3>
+          <h3 className={`mb-3 ${EYEBROW}`}>Statements</h3>
           <ul className="space-y-2">
             {structure.statements.map((statement) => (
-              <CheckRow key={statement.key} label={statement.applicable ? statement.label : `${statement.label} (not needed)`} ok={statement.found || !statement.applicable} muted={!statement.applicable} />
+              <CheckRow
+                key={statement.key}
+                label={statement.applicable ? statement.label : `${statement.label} (not needed)`}
+                ok={statement.found || !statement.applicable}
+                muted={!statement.applicable}
+              />
             ))}
           </ul>
         </div>
       </div>
-      <dl className="mt-6 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5 text-center sm:grid-cols-4 dark:border-white/5">
+      <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4">
         {[
           ["References", refs.found ? String(refs.count) : "none"],
           ["In-text citations", String(refs.citationMarkers)],
           ["Figures / tables", `${structure.figures} / ${structure.tables}`],
           ["Reference years", refs.yearRange ? `${refs.yearRange[0]}–${refs.yearRange[1]}` : "n/a"],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-xl bg-slate-100/80 p-3 dark:bg-white/5">
-            <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
-            <dd className="mt-0.5 text-lg font-semibold tabular-nums">{value}</dd>
+          <div key={label} className="bg-canvas p-3">
+            <dt className="text-[11px] text-muted">{label}</dt>
+            <dd className="mt-1 font-mono text-lg font-semibold tabular-nums text-bright">{value}</dd>
           </div>
         ))}
       </dl>

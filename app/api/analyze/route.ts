@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { UPLOAD_LIMITS } from "@/lib/analyze/config";
-import { analyzeError, badRequest, withApiRequest } from "@/lib/analyze/http";
+import { ANALYSIS_ID_PATTERN, UPLOAD_LIMITS } from "@/lib/analyze/config";
+import { analyzeError, badRequest, readJsonObject, withApiRequest } from "@/lib/analyze/http";
 import { PdfError, type PdfErrorCode } from "@/lib/analyze/pdf";
 import { analyzePdf } from "@/lib/analyze/service";
+import { deleteAnalysis } from "@/lib/analyze/store";
 
 const STATUS_BY_PDF_ERROR: Record<PdfErrorCode, number> = { INVALID_PDF: 415, NO_TEXT: 422, TOO_LONG: 413, PARSE_TIMEOUT: 422 };
 const TOO_LARGE = `The PDF is larger than ${UPLOAD_LIMITS.maxBytes / 1024 / 1024} MB.`;
@@ -13,6 +14,7 @@ export async function POST(request: NextRequest) {
     if (Number(request.headers.get("content-length") ?? 0) > UPLOAD_LIMITS.maxBytes + 64 * 1024) {
       return analyzeError(413, "PAYLOAD_TOO_LARGE", TOO_LARGE);
     }
+
     let form: FormData;
     try {
       form = await request.formData();
@@ -30,5 +32,19 @@ export async function POST(request: NextRequest) {
       if (error instanceof PdfError) return analyzeError(STATUS_BY_PDF_ERROR[error.code], error.code, error.message);
       throw error;
     }
+  });
+}
+
+export async function DELETE(request: NextRequest) {
+  return withApiRequest("DELETE /api/analyze", async () => {
+    const body = await readJsonObject(request);
+    const ids = body?.analysisIds;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100 ||
+      !ids.every((id): id is string => typeof id === "string" && ANALYSIS_ID_PATTERN.test(id))) {
+      return badRequest("analysisIds must contain 1-100 valid analysis ids");
+    }
+    const unique = [...new Set(ids)];
+    const deleted = unique.filter((id) => deleteAnalysis(id));
+    return NextResponse.json({ deleted, alreadyAbsent: unique.filter((id) => !deleted.includes(id)) });
   });
 }

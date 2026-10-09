@@ -13,10 +13,16 @@ export interface StoredAnalysis {
 
 declare global {
   var __trustlensAnalyses: Map<string, StoredAnalysis> | undefined;
+  var __trustlensAnalysisVersion: number | undefined;
 }
 
 // Bounded in-memory store (LRU + TTL). Uploaded PDFs themselves are never kept, only the extracted analysis.
 function store(): Map<string, StoredAnalysis> {
+  // Hot reload preserves globals; discard results from an older pipeline schema.
+  if (globalThis.__trustlensAnalysisVersion !== 2) {
+    globalThis.__trustlensAnalyses = new Map();
+    globalThis.__trustlensAnalysisVersion = 2;
+  }
   globalThis.__trustlensAnalyses ??= new Map();
   return globalThis.__trustlensAnalyses;
 }
@@ -49,4 +55,8 @@ export function getAnalysis(id: string): StoredAnalysis | undefined {
 
 export function clearAnalyses() {
   store().clear();
+}
+
+export function deleteAnalysis(id: string): boolean {
+  return store().delete(id);
 }

@@ -53,7 +53,14 @@ function headingKey(line: string): SectionKey | null {
     const rest = stripped.slice(match[0].length).trim();
     if (rest === "" || /^[:.\-–—]/.test(rest) || /^and\s+(discussion|conclusions?|limitations)$/i.test(rest)) return key;
   }
+
   return null;
+}
+
+export function manuscriptBody(text: string): string {
+  const lines = text.split("\n");
+  const referenceStart = lines.map((line) => headingKey(line.trim())).lastIndexOf("references");
+  return referenceStart === -1 ? text : lines.slice(0, referenceStart).join("\n");
 }
 
 function extractAbstract(lines: string[]): string | null {
