@@ -1,4 +1,4 @@
-# SPEC.md: Integrity & Legal Insights Platform
+# SPEC.md: Trust Lens Integrity & Legal Insights Platform
 
 ## 1. Project Description
 

@@ -16,6 +16,19 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Environment Variables
+
+Copy [`.env.example`](.env.example) to `.env.local` and fill in real values:
+
+```bash
+cp .env.example .env.local
+```
+
+`.env.local` is git-ignored, so it's safe to put real secrets there; never put
+real secrets in `.env.example`. Next.js only reads env files at process
+startup, so restart `npm run dev` (or re-run `npm run build`) any time you
+add or change a variable in `.env.local`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
